@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   BookOpen, 
   Terminal, 
@@ -12,12 +12,18 @@ import {
   Play,
   Cpu
 } from 'lucide-react';
+import { createParsedSnippets } from './codeSnippets';
 
 export default function DocsPage() {
   const [activeTab, setActiveTab] = useState<'rust' | 'js'>('rust');
   const [copied, setCopied] = useState(false);
   const [invoking, setInvoking] = useState(false);
   const [invokeResult, setInvokeResult] = useState<string | null>(null);
+
+  // Pre-parse both snippets during the initial render pass so that tab
+  // switching is instant — no string tokenization occurs on the switch path.
+  const [parsed] = useState(() => createParsedSnippets());
+  const rawSnippetsRef = useRef(parsed.raw);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -44,39 +50,6 @@ export default function DocsPage() {
         }, null, 2)
       );
     }, 1200);
-  };
-
-  const codeSnippets = {
-    rust: `#![no_std]
-use soroban_sdk::{contractimpl, Env, Address, Symbol};
-
-pub struct ConsumerContract;
-
-#[contractimpl]
-impl ConsumerContract {
-    pub fn read_oracle_rate(env: Env, oracle_id: Address) -> u128 {
-        // Invoke StellarFlow core proxy using dynamic interface
-        let asset_symbol = Symbol::new(&env, "NGN");
-        let rate: u128 = env.invoke_contract(
-            &oracle_id,
-            &Symbol::new(&env, "get_latest_rate"),
-            soroban_sdk::vec![&env, asset_symbol.to_val()]
-        );
-        rate
-    }
-}`,
-    js: `import { Contract, networks } from '@stellar/stellar-sdk';
-
-const contractId = 'CCEMOFO5TE7FGOAJOA3RDHPC6RW3CFXRVIGOFQPFE4ZGOKA2QEA636SN';
-const stellarFlowOracle = new Contract(contractId);
-
-async function fetchLiveRate(providerRpcUrl) {
-  // Query latest decentralized exchange base rates
-  const response = await providerRpcUrl.getLatestRate({
-    asset: 'NGN'
-  });
-  console.log(\`Live Oracle Rate: \${response.rate}\`);
-}`
   };
 
   return (
@@ -175,7 +148,7 @@ async function fetchLiveRate(providerRpcUrl) {
               </div>
               
               <button 
-                onClick={() => handleCopy(codeSnippets[activeTab])}
+                onClick={() => handleCopy(rawSnippetsRef.current[activeTab])}
                 className="pb-3 text-gray-500 hover:text-gray-300 flex items-center gap-1 text-xs"
               >
                 {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
@@ -183,11 +156,9 @@ async function fetchLiveRate(providerRpcUrl) {
               </button>
             </div>
 
-            {/* Code Mirror Container */}
-            <div className="p-6 bg-[#0d1117] font-mono text-sm overflow-x-auto text-gray-300 leading-relaxed min-h-[380px]">
-              <pre className="whitespace-pre">
-                {codeSnippets[activeTab]}
-              </pre>
+            {/* Code Mirror Container — renders pre-parsed syntax-highlighted tokens */}
+            <div className="p-6 bg-[#0d1117] font-mono text-sm overflow-x-auto leading-relaxed min-h-[380px] whitespace-pre">
+              {parsed[activeTab]}
             </div>
 
           </div>
